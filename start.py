@@ -26,6 +26,30 @@ def check_node():
         print('❌ 未找到 Node.js，请先安装: https://nodejs.org/')
         return False
 
+def fix_npm_cache():
+    """尝试修复 npm 缓存权限问题"""
+    home = os.path.expanduser('~')
+    npm_cache = os.path.join(home, '.npm')
+    if not os.path.isdir(npm_cache):
+        return
+
+    if platform.system() == 'Darwin' or platform.system() == 'Linux':
+        print('🔧 尝试修复 npm 缓存权限...')
+        user = os.environ.get('USER', os.environ.get('LOGNAME', ''))
+        if user:
+            result = subprocess.run(
+                ['sudo', 'chown', '-R', user, npm_cache],
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                print('✅ npm 缓存权限已修复')
+                return True
+    elif platform.system() == 'Windows':
+        print('🔧 Windows 下请以管理员身份运行，或手动删除以下文件夹后重试:')
+        print(f'   {npm_cache}')
+
+    return False
+
 def install_deps():
     node_modules = os.path.join(DIR, 'node_modules')
     if os.path.isdir(node_modules):
@@ -35,7 +59,28 @@ def install_deps():
     print('📦 安装依赖中...')
     result = subprocess.run(['npm', 'install'], cwd=DIR, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f'❌ 安装失败:\n{result.stderr}')
+        stderr = result.stderr
+
+        # 检测权限问题并自动修复
+        if 'EACCES' in stderr:
+            print('⚠️  npm 缓存目录权限问题，正在修复...')
+            if fix_npm_cache():
+                # 重试安装
+                print('📦 重新安装依赖...')
+                result = subprocess.run(['npm', 'install'], cwd=DIR, capture_output=True, text=True)
+                if result.returncode == 0:
+                    print('✅ 依赖安装完成')
+                    return True
+
+            print('❌ 权限修复失败，请手动执行以下命令后重试:')
+            if platform.system() == 'Windows':
+                print('   以管理员身份打开 PowerShell，运行:')
+                print(f'   Remove-Item -Recurse -Force "$env:USERPROFILE\\.npm"')
+            else:
+                print(f'   sudo chown -R $(whoami) ~/.npm')
+            return False
+
+        print(f'❌ 安装失败:\n{stderr}')
         return False
     print('✅ 依赖安装完成')
     return True

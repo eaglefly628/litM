@@ -1,0 +1,16 @@
+{
+  "name": "xiaoyuan-growth",
+  "version": "1.0.0",
+  "description": "小源养成记 - 宠物养成互动游戏",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.21.0",
+    "express-session": "^1.18.1",
+    "uuid": "^10.0.0"
+  }
+}

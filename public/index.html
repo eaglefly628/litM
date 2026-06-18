@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>小源养成记</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 登录页 -->
+    <div v-if="!user" class="page login-page">
+      <div class="login-header">
+        <div class="pet-avatar-large">🐶</div>
+        <h1>小源养成记</h1>
+        <p class="subtitle">宠物养成互动游戏</p>
+      </div>
+
+      <div class="login-form" v-if="!showRegister">
+        <input v-model="loginForm.username" placeholder="用户名" class="input" />
+        <input v-model="loginForm.password" type="password" placeholder="密码" class="input" />
+        <button @click="login" class="btn btn-primary btn-block">登录</button>
+        <button @click="showRegister = true" class="btn btn-ghost btn-block">没有账号？注册</button>
+      </div>
+
+      <div class="login-form" v-else>
+        <input v-model="registerForm.username" placeholder="用户名" class="input" />
+        <input v-model="registerForm.password" type="password" placeholder="密码" class="input" />
+        <input v-model="registerForm.nickname" placeholder="昵称（可选）" class="input" />
+        <div class="role-select">
+          <div class="role-card" :class="{ active: registerForm.role === 'owner' }" @click="registerForm.role = 'owner'">
+            <span class="role-icon">👑</span>
+            <span class="role-name">主人</span>
+            <span class="role-desc">管理任务，守护小源</span>
+          </div>
+          <div class="role-card" :class="{ active: registerForm.role === 'pet' }" @click="registerForm.role = 'pet'">
+            <span class="role-icon">🐶</span>
+            <span class="role-name">小源</span>
+            <span class="role-desc">完成任务，快乐成长</span>
+          </div>
+        </div>
+        <button @click="register" class="btn btn-primary btn-block">注册</button>
+        <button @click="showRegister = false" class="btn btn-ghost btn-block">已有账号？登录</button>
+      </div>
+
+      <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
+    </div>
+
+    <!-- 配对页 -->
+    <div v-else-if="user && !user.partnerId && currentPage === 'bind'" class="page bind-page">
+      <div class="page-header">
+        <h2>配对绑定</h2>
+        <p>和你的{{ user.role === 'owner' ? '小源' : '主人' }}绑定吧~</p>
+      </div>
+      <div class="card">
+        <div class="card-title">你的配对码</div>
+        <div class="bind-code">{{ user.bindCode }}</div>
+        <p class="hint">把配对码发给对方</p>
+      </div>
+      <div class="card" style="margin-top: 16px;">
+        <div class="card-title">输入对方的配对码</div>
+        <input v-model="bindCodeInput" placeholder="输入6位配对码" class="input" maxlength="6" />
+        <button @click="bind" class="btn btn-primary btn-block" style="margin-top: 12px;">配对</button>
+      </div>
+      <button @click="currentPage = 'home'" class="btn btn-ghost btn-block" style="margin-top: 16px;">跳过，稍后配对</button>
+      <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
+    </div>
+
+    <!-- 主应用 -->
+    <div v-else class="app-container">
+      <!-- 首页 -->
+      <div v-if="currentPage === 'home'" class="page">
+        <div class="home-header">
+          <h1 class="app-title">小源养成记</h1>
+          <span class="role-badge">{{ user.role === 'owner' ? '👑 主人' : '🐶 小源' }}</span>
+        </div>
+
+        <div class="pet-display">
+          <div class="pet-avatar-animated">{{ petEmoji }}</div>
+          <div class="pet-title">{{ pet.title }}</div>
+          <div class="pet-mood">{{ moodEmoji }}</div>
+        </div>
+
+        <div class="card stats-card">
+          <div class="level-bar">
+            <span class="level-text">Lv.{{ pet.level }}</span>
+            <div class="progress-bar"><div class="progress-fill" :style="{ width: expProgress + '%' }"></div></div>
+            <span class="exp-text">{{ pet.exp }}/{{ expForNext }} EXP</span>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item"><span class="stat-icon">💎</span><span class="stat-label">积分</span><span class="stat-value accent">{{ pet.points }}</span></div>
+            <div class="stat-item"><span class="stat-icon">💕</span><span class="stat-label">亲密度</span><span class="stat-value pink">{{ pet.affection }}%</span></div>
+            <div class="stat-item"><span class="stat-icon">🔥</span><span class="stat-label">连续打卡</span><span class="stat-value red">{{ pet.streak }}天</span></div>
+            <div class="stat-item"><span class="stat-icon">⭐</span><span class="stat-label">总积分</span><span class="stat-value gold">{{ pet.total_points }}</span></div>
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button v-if="user.role === 'pet'" @click="currentPage = 'tasks'" class="btn btn-primary">📋 去打卡</button>
+          <button v-if="user.role === 'pet'" @click="currentPage = 'games'" class="btn btn-secondary">🎮 玩游戏</button>
+          <button v-if="user.role === 'owner'" @click="currentPage = 'tasks'" class="btn btn-primary">📝 管理任务</button>
+          <button v-if="user.role === 'owner'" @click="currentPage = 'shop'" class="btn btn-success">🎁 奖惩管理</button>
+        </div>
+
+        <div class="card overview-card">
+          <div class="card-title">📌 今日概览</div>
+          <p>已完成 {{ todayCompleted }}/{{ todayTotal }} 个任务</p>
+          <p class="hint">{{ todayCompleted >= todayTotal && todayTotal > 0 ? '太棒了，全部完成！🎉' : '继续加油哦~ 💪' }}</p>
+        </div>
+
+        <div v-if="!user.partnerId" class="card" @click="currentPage = 'bind'" style="cursor:pointer; text-align:center;">
+          <p>⚠️ 尚未配对，点击这里绑定{{ user.role === 'owner' ? '小源' : '主人' }}</p>
+        </div>
+      </div>
+
+      <!-- 任务页 -->
+      <div v-if="currentPage === 'tasks'" class="page">
+        <div class="page-header">
+          <button @click="currentPage = 'home'" class="btn-back">← 返回</button>
+          <h2>📋 每日任务</h2>
+          <span class="date-text">{{ today }}</span>
+        </div>
+
+        <div class="card">
+          <div class="progress-summary">
+            <span>今日进度: {{ todayCompleted }}/{{ todayTotal }}</span>
+            <div class="progress-bar"><div class="progress-fill" :style="{ width: (todayTotal ? todayCompleted/todayTotal*100 : 0) + '%' }"></div></div>
+          </div>
+        </div>
+
+        <div v-for="task in tasks" :key="task.id" class="card task-card">
+          <div class="task-left">
+            <span class="task-icon">{{ task.icon }}</span>
+            <div class="task-info">
+              <div class="task-name" :class="{ done: task.status === 'done', missed: task.status === 'missed' }">{{ task.name }}</div>
+              <div class="task-meta">
+                <span class="task-points">+{{ task.points }}分</span>
+                <span v-if="task.time_start" class="task-time">{{ task.time_start }}-{{ task.time_end }}</span>
+              </div>
+              <div v-if="task.detail" class="task-detail">📝 {{ task.detail }}</div>
+            </div>
+          </div>
+          <div class="task-right">
+            <span v-if="task.status === 'done'" class="badge badge-success">已完成</span>
+            <span v-else-if="task.status === 'missed'" class="badge badge-danger">已过期</span>
+            <span v-else-if="task.status === 'submitted' && user.role === 'owner'" class="btn btn-sm btn-success" @click="verifyTask(task.task_id)">✅ 确认</span>
+            <span v-else-if="task.status === 'submitted'" class="badge badge-warning">待确认</span>
+            <span v-else-if="user.role === 'pet'" class="btn btn-sm btn-primary" @click="checkinTask(task.task_id)">打卡</span>
+            <span v-else class="badge badge-gray">待完成</span>
+          </div>
+        </div>
+
+        <button v-if="user.role === 'owner'" @click="createTask" class="btn btn-primary fab">+ 发布任务</button>
+      </div>
+
+      <!-- 游戏页 -->
+      <div v-if="currentPage === 'games'" class="page">
+        <div class="page-header">
+          <button @click="currentPage = 'home'" class="btn-back">← 返回</button>
+          <h2>🎮 趣味游戏</h2>
+        </div>
+
+        <div v-if="!gameMode">
+          <div class="card game-entry" @click="gameMode = 'wheel'">
+            <div class="game-color-bar" style="background:#FF6B9D"></div>
+            <div class="game-entry-content"><div class="game-entry-title">🎰 幸运转盘</div><div class="game-entry-desc">转一转，看看今天的运气~</div></div>
+          </div>
+          <div class="card game-entry" @click="gameMode = 'dice'">
+            <div class="game-color-bar" style="background:#C084FC"></div>
+            <div class="game-entry-content"><div class="game-entry-title">🎲 骰子挑战</div><div class="game-entry-desc">和主人比点数</div></div>
+          </div>
+          <div class="card game-entry" @click="gameMode = 'tod'">
+            <div class="game-color-bar" style="background:#FB923C"></div>
+            <div class="game-entry-content"><div class="game-entry-title">💬 真心话大冒险</div><div class="game-entry-desc">真心话还是大冒险？</div></div>
+          </div>
+          <div class="card game-entry" @click="playRandomEvent">
+            <div class="game-color-bar" style="background:#4ADE80"></div>
+            <div class="game-entry-content"><div class="game-entry-title">🎁 今日随机事件</div><div class="game-entry-desc">看看今天的惊喜~</div></div>
+          </div>
+        </div>
+
+        <!-- 转盘 -->
+        <div v-if="gameMode === 'wheel'" class="game-panel">
+          <div class="wheel-container">
+            <canvas ref="wheelCanvas" width="280" height="280" @click="spinWheel"></canvas>
+            <div class="wheel-pointer">▼</div>
+          </div>
+          <button @click="spinWheel" class="btn btn-primary" :disabled="wheelSpinning">{{ wheelSpinning ? '转动中...' : '🎰 转一转！' }}</button>
+          <div v-if="wheelResult" class="card result-card">
+            <div class="result-icon">🎉</div>
+            <div class="result-text">{{ wheelResult.text }}</div>
+            <div class="result-points" :class="{ positive: wheelResult.points > 0, negative: wheelResult.points < 0 }">
+              {{ wheelResult.points > 0 ? '+' : '' }}{{ wheelResult.points }}积分
+            </div>
+          </div>
+          <button @click="gameMode = null; wheelResult = null" class="btn btn-ghost">返回游戏列表</button>
+        </div>
+
+        <!-- 骰子 -->
+        <div v-if="gameMode === 'dice'" class="game-panel">
+          <div class="dice-area">
+            <div class="dice-player">
+              <div class="dice-box">{{ diceValues[0] ? diceEmojis[diceValues[0]] : '🎲' }}</div>
+              <div class="dice-label">👑 主人</div>
+            </div>
+            <div class="dice-vs">VS</div>
+            <div class="dice-player">
+              <div class="dice-box">{{ diceValues[1] ? diceEmojis[diceValues[1]] : '🎲' }}</div>
+              <div class="dice-label">🐶 小源</div>
+            </div>
+          </div>
+          <button @click="rollDice" class="btn btn-secondary" :disabled="diceRolling">{{ diceRolling ? '摇动中...' : '🎲 掷骰子！' }}</button>
+          <div v-if="diceResult" class="card result-card">
+            <div class="result-text">{{ diceResult.resultText }}</div>
+            <div v-if="diceResult.points" class="result-points positive">+{{ diceResult.points }}积分</div>
+          </div>
+          <button @click="gameMode = null; diceResult = null" class="btn btn-ghost">返回游戏列表</button>
+        </div>
+
+        <!-- 真心话大冒险 -->
+        <div v-if="gameMode === 'tod'" class="game-panel">
+          <div v-if="!todQuestion">
+            <p class="game-hint">选择你的命运~</p>
+            <div class="tod-choose">
+              <div class="tod-card tod-truth" @click="pickTod('truth')"><span class="tod-icon">💬</span><span>真心话</span></div>
+              <div class="tod-card tod-dare" @click="pickTod('dare')"><span class="tod-icon">🔥</span><span>大冒险</span></div>
+            </div>
+            <button @click="pickTod(Math.random()>0.5?'truth':'dare')" class="btn btn-secondary">🎲 随机选择</button>
+          </div>
+          <div v-else>
+            <div class="card tod-result" :class="todType === 'truth' ? 'tod-truth-bg' : 'tod-dare-bg'">
+              <div class="tod-type">{{ todType === 'truth' ? '💬 真心话' : '🔥 大冒险' }}</div>
+              <div class="tod-question">{{ todQuestion }}</div>
+            </div>
+            <div v-if="!todShowRating">
+              <button @click="pickTod(todType)" class="btn btn-ghost">🔄 换一个</button>
+              <button @click="todShowRating = true" class="btn btn-success">✅ 完成了！请评分</button>
+            </div>
+            <div v-else class="rating-panel">
+              <p>对方表现如何？</p>
+              <button @click="rateTod(15)" class="btn btn-primary btn-block">⭐⭐⭐ 完美完成 (+15分)</button>
+              <button @click="rateTod(10)" class="btn btn-secondary btn-block">⭐⭐ 不错哦 (+10分)</button>
+              <button @click="rateTod(5)" class="btn btn-ghost btn-block">⭐ 勉强及格 (+5分)</button>
+              <button @click="rateTod(-5)" class="btn btn-danger btn-block">💔 没有完成 (-5分)</button>
+            </div>
+          </div>
+          <button @click="gameMode = null; todQuestion = ''; todShowRating = false" class="btn btn-ghost" style="margin-top:12px">返回游戏列表</button>
+        </div>
+
+        <!-- 随机事件结果 -->
+        <div v-if="gameMode === 'event'" class="game-panel">
+          <div class="card result-card event-card">
+            <div class="event-icon">{{ randomEvent.icon }}</div>
+            <div class="result-text">{{ randomEvent.text }}</div>
+          </div>
+          <button @click="gameMode = null" class="btn btn-primary">知道了~</button>
+        </div>
+      </div>
+
+      <!-- 商城页 -->
+      <div v-if="currentPage === 'shop'" class="page">
+        <div class="page-header">
+          <button @click="currentPage = 'home'" class="btn-back">← 返回</button>
+          <h2>🎁 积分商城</h2>
+        </div>
+
+        <div class="card points-display">
+          <span>💎 当前积分:</span>
+          <span class="points-value">{{ shopPoints }}</span>
+        </div>
+
+        <div class="tab-bar">
+          <button :class="{ active: shopTab === 'rewards' }" @click="shopTab = 'rewards'">🎁 奖励</button>
+          <button :class="{ active: shopTab === 'punishments' }" @click="shopTab = 'punishments'">⚡ 惩罚</button>
+        </div>
+
+        <div v-for="item in (shopTab === 'rewards' ? shopRewards : shopPunishments)" :key="item.id" class="card shop-item">
+          <span class="shop-icon">{{ item.icon }}</span>
+          <div class="shop-info">
+            <div class="shop-content">{{ item.content }}</div>
+            <span class="badge" :class="categoryClass(item.category)">{{ item.category }}</span>
+          </div>
+          <div class="shop-action">
+            <button v-if="shopTab === 'rewards' && user.role === 'pet'" @click="redeemReward(item)"
+              class="btn btn-sm" :class="shopPoints >= item.points_cost ? 'btn-primary' : 'btn-disabled'">
+              {{ item.points_cost }}分
+            </button>
+            <button v-if="user.role === 'owner'" @click="removeShopItem(item.id)" class="btn btn-sm btn-ghost">删除</button>
+          </div>
+        </div>
+
+        <button v-if="user.role === 'owner'" @click="addShopItem" class="btn btn-primary fab">+ 添加{{ shopTab === 'rewards' ? '奖励' : '惩罚' }}</button>
+      </div>
+
+      <!-- 日记页 -->
+      <div v-if="currentPage === 'diary'" class="page">
+        <div class="page-header">
+          <button @click="currentPage = 'home'" class="btn-back">← 返回</button>
+          <h2>📖 成长日记</h2>
+          <span class="date-text">{{ today }}</span>
+        </div>
+
+        <div v-if="!showDiaryHistory">
+          <div class="card">
+            <div class="card-title">今天心情如何？</div>
+            <div class="mood-picker">
+              <div v-for="m in moods" :key="m.label" class="mood-item"
+                :class="{ active: diaryMood === m.label }" @click="saveMood(m.label)">
+                <span class="mood-emoji">{{ m.emoji }}</span>
+                <span class="mood-label">{{ m.label }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">🍽️ 今日饮食</div>
+            <div class="meal-row" v-for="(meal, key) in {breakfast:'🥣 早餐', lunch:'🍱 午餐', dinner:'🍽️ 晚餐'}" :key="key">
+              <span class="meal-label">{{ meal }}</span>
+              <input :value="diaryMeals[key]" @blur="saveMeal(key, $event.target.value)" :placeholder="'记录' + meal.slice(2)" class="input input-sm" />
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">👑 主人留言</div>
+            <p v-if="diaryComment" class="diary-comment">{{ diaryComment }}</p>
+            <p v-else class="hint">暂无留言~</p>
+            <button v-if="user.role === 'owner'" @click="writeComment" class="btn btn-sm btn-primary" style="margin-top:8px">写留言</button>
+          </div>
+
+          <button v-if="user.role === 'pet'" @click="writeDiary" class="btn btn-primary btn-block">✏️ 写今日日记</button>
+          <div v-if="diaryHighlights" class="card"><div class="card-title">📝 今日日记</div><p>{{ diaryHighlights }}</p></div>
+
+          <button @click="loadDiaryHistory(); showDiaryHistory = true" class="btn btn-ghost btn-block">📅 查看历史日记</button>
+        </div>
+
+        <div v-else>
+          <button @click="showDiaryHistory = false" class="btn btn-sm btn-primary" style="margin-bottom:12px">← 返回今天</button>
+          <div v-for="d in diaryHistory" :key="d.id" class="card diary-history-item">
+            <div class="diary-date">{{ d.date }}</div>
+            <span v-if="d.mood" class="diary-mood-badge">{{ getMoodEmoji(d.mood) }} {{ d.mood }}</span>
+            <p v-if="d.highlights">{{ d.highlights }}</p>
+            <p v-if="d.owner_comment" class="diary-owner-comment">👑 {{ d.owner_comment }}</p>
+          </div>
+          <p v-if="diaryHistory.length === 0" class="hint" style="text-align:center">还没有日记记录哦~</p>
+        </div>
+      </div>
+
+      <!-- 底部导航 -->
+      <div class="nav-bar">
+        <div class="nav-item" :class="{ active: currentPage === 'home' }" @click="currentPage = 'home'"><span class="nav-icon">🏠</span><span class="nav-label">首页</span></div>
+        <div class="nav-item" :class="{ active: currentPage === 'tasks' }" @click="goTasks"><span class="nav-icon">📋</span><span class="nav-label">任务</span></div>
+        <div class="nav-item" :class="{ active: currentPage === 'games' }" @click="currentPage = 'games'; gameMode = null"><span class="nav-icon">🎮</span><span class="nav-label">游戏</span></div>
+        <div class="nav-item" :class="{ active: currentPage === 'shop' }" @click="goShop"><span class="nav-icon">🎁</span><span class="nav-label">商城</span></div>
+        <div class="nav-item" :class="{ active: currentPage === 'diary' }" @click="goDiary"><span class="nav-icon">📖</span><span class="nav-label">日记</span></div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div v-if="toast" class="toast" :class="toast.type">{{ toast.message }}</div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

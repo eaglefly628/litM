@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🐶 启动小源养成记 (Python)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/start.py",
+      "console": "integratedTerminal",
+      "env": {
+        "PORT": "3000"
+      }
+    },
+    {
+      "name": "🐶 启动小源养成记 (Node)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server.js",
+      "console": "integratedTerminal",
+      "env": {
+        "PORT": "3000"
+      }
+    },
+    {
+      "name": "🐶 Debug 后端 (Node attach)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true
+    }
+  ]
+}
